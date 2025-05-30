@@ -2,7 +2,7 @@
 
 A real-time facial analysis system that demonstrates advanced computer vision and deep learning capabilities. This project showcases integration of multiple AI models for face detection, age estimation, gender prediction, emotion recognition, and facial landmark detection.
 
-## 🌟 Features
+##  Features
 
 - **Real-time Face Detection**: Using MTCNN/MediaPipe for accurate face detection
 - **Age Estimation**: Deep learning-based age prediction
@@ -12,7 +12,7 @@ A real-time facial analysis system that demonstrates advanced computer vision an
 - **Performance Metrics**: Real-time FPS counter and model inference time
 - **Modular Design**: Select which analyses to run via command line or GUI
 
-## 🛠️ Installation
+##  Installation
 
 1. Clone the repository:
    ```bash
@@ -34,7 +34,7 @@ A real-time facial analysis system that demonstrates advanced computer vision an
    pip install -r requirements.txt
    ```
 
-## 🚀 Usage
+##  Usage
 
 1. Run the main application:
    ```bash
@@ -48,7 +48,7 @@ A real-time facial analysis system that demonstrates advanced computer vision an
    python src/app.py --help  # Show all options
    ```
 
-## 🏗️ Project Structure
+##  Project Structure
 
 ```
 src/
@@ -58,29 +58,29 @@ src/
 └── app.py         # Main application entry point
 ```
 
-## 🤝 Contributing
+##  Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
-## 📝 License
+##  License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
-## 🙏 Acknowledgments
+##  Acknowledgments
 
 - MTCNN for face detection
 - MediaPipe for facial landmarks
 - TensorFlow and PyTorch communities
 - OpenCV team
 
-## 📊 Performance
+##  Performance
 
 The system is optimized to run on CPU while maintaining real-time performance:
 - Face Detection: ~30 FPS
 - Full Analysis: ~15-20 FPS (depending on hardware)
 - Memory Usage: ~500MB-1GB
 
-## 🔮 Future Improvements
+##  Future Improvements
 
 - [ ] Add face recognition capabilities
 - [ ] Implement face tracking

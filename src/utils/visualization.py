@@ -26,7 +26,7 @@ class Visualizer:
         if 'bbox' in results:
             self._draw_bbox(frame, results['bbox'])
             
-        if 'landmarks' in results:
+        if 'landmarks' in results and results['landmarks'] is not None:
             self._draw_landmarks(frame, results['landmarks'])
             
         # Draw text results above bbox
@@ -48,6 +48,9 @@ class Visualizer:
     
     def _draw_landmarks(self, frame: np.ndarray, landmarks: np.ndarray) -> None:
         """Draw facial landmarks on frame."""
+        if landmarks is None:
+            return
+            
         for point in landmarks:
             cv2.circle(frame, tuple(point.astype(int)), 2, self.colors['landmarks'], -1)
     
