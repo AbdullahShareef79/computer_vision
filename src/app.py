@@ -106,9 +106,19 @@ class FaceAnalysisApp:
             self.cleanup()
 
     def cleanup(self):
+        """Clean up resources."""
         logger.info("Cleaning up...")
-        self.camera.release()
-        cv2.destroyAllWindows()
+        
+        # Release camera
+        if hasattr(self, 'camera'):
+            self.camera.release()
+            
+        # Clean up predictors
+        if hasattr(self, 'age_gender_predictor'):
+            self.age_gender_predictor.cleanup()
+            
+        if hasattr(self, 'emotion_detector'):
+            self.emotion_detector.cleanup()
 
 def main():
     args = parse_args()
