@@ -5,13 +5,13 @@ import logging
 from rich.logging import RichHandler
 
 # Local imports
-from camera.capture import WebcamCapture
-from models.face_detector import FaceDetector
-from models.age_gender import AgeGenderPredictor
-from models.emotion import EmotionDetector
-from models.landmarks import FacialLandmarks
-from utils.fps_counter import FPSCounter
-from utils.visualization import Visualizer
+from .camera.capture import WebcamCapture
+from .models.face_detector import FaceDetector
+from .models.age_gender import AgeGenderPredictor
+from .models.emotion import EmotionDetector
+from .models.landmarks import FacialLandmarks
+from .utils.fps_counter import FPSCounter
+from .utils.visualization import Visualizer
 
 # Set up logging
 logging.basicConfig(

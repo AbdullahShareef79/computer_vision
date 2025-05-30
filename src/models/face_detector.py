@@ -15,7 +15,7 @@ class FaceDetector:
         """
         self.min_confidence = min_confidence
         try:
-            self.detector = MTCNN(min_face_size=20, scale_factor=0.709)
+            self.detector = MTCNN()
             logger.info("MTCNN face detector initialized successfully")
         except Exception as e:
             logger.error(f"Error initializing MTCNN: {str(e)}")
