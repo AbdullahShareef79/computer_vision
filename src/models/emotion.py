@@ -1,56 +1,36 @@
 import cv2
 import numpy as np
 import logging
-from typing import Tuple, Dict
+from typing import Tuple, Dict, List
 from collections import deque
+from deepface import DeepFace
 
 logger = logging.getLogger("face_analysis")
 
 class EmotionDetector:
     def __init__(self):
-        """Initialize emotion detection using simple heuristics."""
-        self.history = {}
-        self.history_length = 5
-        logger.info("Emotion detection initialized")
+        """Initialize emotion detection with DeepFace and temporal smoothing."""
+        self.emotions = ['neutral', 'happy', 'sad', 'surprise', 'angry', 'fear', 'disgust']
+        self.history = {}  # Store prediction history for each face
+        self.history_length = 5  # Number of frames to keep in history
+        logger.info("Emotion detection initialized with DeepFace")
 
     def _get_face_id(self, bbox: Tuple[int, int, int, int]) -> str:
-        """Generate a face ID based on position."""
+        """Generate a stable face ID based on position."""
         x, y, w, h = bbox
-        return f"{x//10}_{y//10}"
-
-    def _estimate_emotion(self, face_roi: np.ndarray) -> str:
-        """Estimate emotion using facial features."""
-        # Convert to grayscale
-        gray = cv2.cvtColor(face_roi, cv2.COLOR_BGR2GRAY)
-        
-        # Calculate facial features
-        features = {
-            'avg_intensity': np.mean(gray),
-            'std_intensity': np.std(gray),
-            'gradient_y': np.mean(np.abs(cv2.Sobel(gray, cv2.CV_64F, 0, 1))),
-            'gradient_x': np.mean(np.abs(cv2.Sobel(gray, cv2.CV_64F, 1, 0)))
-        }
-        
-        # Analyze vertical gradient (useful for detecting smiles)
-        mouth_region = gray[int(gray.shape[0]*0.6):int(gray.shape[0]*0.9), :]
-        mouth_gradient = np.mean(np.abs(cv2.Sobel(mouth_region, cv2.CV_64F, 0, 1)))
-        
-        # Simple emotion classification based on features
-        if mouth_gradient > 20:  # High vertical gradient in mouth region
-            if features['std_intensity'] < 40:  # Smooth texture
-                return "Happy"
-            else:
-                return "Surprised"
-        else:  # Low vertical gradient
-            if features['std_intensity'] > 45:  # High texture variation
-                return "Angry"
-            elif features['avg_intensity'] < 100:  # Darker regions
-                return "Sad"
-            else:
-                return "Neutral"
+        center_x, center_y = x + w//2, y + h//2
+        return f"{center_x//20}_{center_y//20}"  # More stable quantization
 
     def detect(self, frame: np.ndarray, bbox: Tuple[int, int, int, int]) -> str:
-        """Detect emotion with temporal smoothing."""
+        """Detect emotion in a face image using DeepFace with temporal smoothing.
+        
+        Args:
+            frame: Input BGR image
+            bbox: Face bounding box (x, y, width, height)
+            
+        Returns:
+            Predicted emotion label
+        """
         try:
             face_id = self._get_face_id(bbox)
             
@@ -58,34 +38,41 @@ class EmotionDetector:
             if face_id not in self.history:
                 self.history[face_id] = deque(maxlen=self.history_length)
             
-            # Extract face ROI
+            # Extract face region with margin
             x, y, w, h = bbox
-            face_roi = frame[y:y+h, x:x+w]
+            margin = 20
+            face_region = frame[
+                max(0, y-margin):min(frame.shape[0], y+h+margin),
+                max(0, x-margin):min(frame.shape[1], x+w+margin)
+            ]
             
-            # Ensure minimum size
-            if face_roi.size == 0 or w < 20 or h < 20:
-                return "Unknown"
+            # Convert to RGB (DeepFace expects RGB)
+            rgb_face = cv2.cvtColor(face_region, cv2.COLOR_BGR2RGB)
             
-            # Get emotion prediction
-            emotion = self._estimate_emotion(face_roi)
+            # Analyze emotions using DeepFace
+            result = DeepFace.analyze(
+                rgb_face,
+                actions=['emotion'],
+                enforce_detection=False,
+                silent=True
+            )
+            
+            # Get dominant emotion
+            emotion = result[0]['dominant_emotion'].lower()
             
             # Add to history
             self.history[face_id].append(emotion)
             
-            # Get most common emotion from history
+            # Get most common emotion from history for stability
             if len(self.history[face_id]) > 0:
-                emotion_counts = {}
-                for e in self.history[face_id]:
-                    emotion_counts[e] = emotion_counts.get(e, 0) + 1
-                
-                smoothed_emotion = max(emotion_counts.items(), key=lambda x: x[1])[0]
-                return smoothed_emotion
+                stable_emotion = max(set(self.history[face_id]), key=list(self.history[face_id]).count)
+                return stable_emotion.capitalize()
             
-            return emotion
+            return emotion.capitalize()
             
         except Exception as e:
             logger.error(f"Error in emotion detection: {str(e)}")
-            return "Unknown"
+            return "Neutral"  # Default to neutral on error
 
     def cleanup(self):
         """Clean up resources."""
