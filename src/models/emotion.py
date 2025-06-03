@@ -75,5 +75,5 @@ class EmotionDetector:
             return "Neutral"  # Default to neutral on error
 
     def cleanup(self):
-        """Clean up old face histories."""
+        """Clean up resources."""
         self.history.clear() 

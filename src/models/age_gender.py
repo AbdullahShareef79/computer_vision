@@ -8,47 +8,86 @@ logger = logging.getLogger("face_analysis")
 
 class AgeGenderPredictor:
     def __init__(self):
-        """Initialize age and gender prediction with smoothing."""
-        self.age_ranges = [
-            (0, 2), (4, 6), (8, 12), (15, 20), (25, 32),
-            (38, 43), (48, 53), (60, 100)
-        ]
-        self.gender_list = ['Female', 'Male']
-        self.history = {}  # Store prediction history for each face
-        self.history_length = 10  # Number of frames to consider for smoothing
-        logger.info("Age and gender prediction initialized in demo mode")
-
-    def _get_face_features(self, frame: np.ndarray, bbox: Tuple[int, int, int, int]) -> Tuple[float, float]:
-        """Extract simple features from face region for consistent predictions."""
-        x, y, w, h = bbox
-        face_roi = frame[y:y+h, x:x+w]
-        if face_roi.size == 0:
-            return 0.0, 0.0
-        
-        # Convert to grayscale
-        gray_roi = cv2.cvtColor(face_roi, cv2.COLOR_BGR2GRAY)
-        
-        # Calculate features
-        avg_intensity = np.mean(gray_roi)
-        texture = np.std(gray_roi)
-        
-        return avg_intensity, texture
+        """Initialize age and gender prediction using advanced heuristics."""
+        self.history = {}
+        self.history_length = 5
+        logger.info("Age and gender prediction initialized")
 
     def _get_face_id(self, bbox: Tuple[int, int, int, int]) -> str:
-        """Generate a simple face ID based on position."""
+        """Generate a face ID based on position."""
         x, y, w, h = bbox
-        return f"{x//10}_{y//10}"  # Quantize position for stability
+        return f"{x//10}_{y//10}"
+
+    def _extract_features(self, face_roi: np.ndarray) -> Dict:
+        """Extract comprehensive facial features."""
+        # Convert to grayscale
+        gray = cv2.cvtColor(face_roi, cv2.COLOR_BGR2GRAY)
+        
+        # Basic features
+        features = {
+            'avg_intensity': np.mean(gray),
+            'std_intensity': np.std(gray),
+            'face_ratio': face_roi.shape[1] / face_roi.shape[0],  # width/height ratio
+        }
+        
+        # Texture features using gradients
+        grad_x = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=3)
+        grad_y = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=3)
+        features['texture_energy'] = np.mean(np.sqrt(grad_x**2 + grad_y**2))
+        
+        # Region-specific features
+        h, w = gray.shape
+        forehead = gray[0:h//3, w//4:3*w//4]
+        cheeks = gray[h//3:2*h//3, :]
+        jaw = gray[2*h//3:, :]
+        
+        features.update({
+            'forehead_smoothness': np.std(forehead),
+            'cheek_contrast': np.std(cheeks),
+            'jaw_definition': np.mean(np.abs(cv2.Sobel(jaw, cv2.CV_64F, 0, 1)))
+        })
+        
+        return features
+
+    def _estimate_age_gender(self, face_roi: np.ndarray) -> Tuple[str, str]:
+        """Estimate age and gender using advanced facial features."""
+        features = self._extract_features(face_roi)
+        
+        # Gender estimation using multiple features
+        gender_score = 0
+        gender_score += 1 if features['face_ratio'] > 0.78 else -1  # Face shape
+        gender_score += 1 if features['jaw_definition'] > 25 else -1  # Jaw definition
+        gender_score += 1 if features['texture_energy'] > 15 else -1  # Facial texture
+        
+        gender = "Man" if gender_score > 0 else "Woman"
+        
+        # Age estimation using multiple features
+        # Younger faces typically have:
+        # - Smoother skin (lower texture energy)
+        # - More uniform regions (lower std_intensity)
+        # - Smoother forehead
+        age_score = (
+            features['texture_energy'] * 0.4 +
+            features['std_intensity'] * 0.3 +
+            features['forehead_smoothness'] * 0.3
+        )
+        
+        # Age brackets based on combined score
+        if age_score < 12:
+            age = "15-25"
+        elif age_score < 18:
+            age = "25-35"
+        elif age_score < 25:
+            age = "35-45"
+        elif age_score < 35:
+            age = "45-55"
+        else:
+            age = "55+"
+        
+        return age, gender
 
     def predict(self, frame: np.ndarray, bbox: Tuple[int, int, int, int]) -> Tuple[str, str]:
-        """Predict age and gender for a face with temporal smoothing.
-        
-        Args:
-            frame: Input BGR image
-            bbox: Face bounding box (x, y, width, height)
-            
-        Returns:
-            Tuple of (age_range, gender)
-        """
+        """Predict age and gender with temporal smoothing."""
         try:
             face_id = self._get_face_id(bbox)
             
@@ -59,40 +98,44 @@ class AgeGenderPredictor:
                     'gender': deque(maxlen=self.history_length)
                 }
             
-            # Get face features
-            intensity, texture = self._get_face_features(frame, bbox)
+            # Extract face ROI
+            x, y, w, h = bbox
+            face_roi = frame[y:y+h, x:x+w]
             
-            # Map intensity to age index (higher intensity -> younger)
-            age_idx = int((1.0 - intensity / 255.0) * (len(self.age_ranges) - 1))
-            age_idx = max(0, min(age_idx, len(self.age_ranges) - 1))
+            # Ensure minimum size and square-ish aspect ratio
+            if (face_roi.size == 0 or w < 20 or h < 20 or 
+                w/h < 0.5 or w/h > 2.0):  # Filter out poor detections
+                return "Unknown", "Unknown"
             
-            # Map texture to gender (higher texture -> male)
-            gender_idx = int(texture > 50)  # Simple threshold
+            # Get predictions
+            age, gender = self._estimate_age_gender(face_roi)
             
             # Add to history
-            self.history[face_id]['age'].append(age_idx)
-            self.history[face_id]['gender'].append(gender_idx)
+            self.history[face_id]['age'].append(age)
+            self.history[face_id]['gender'].append(gender)
             
-            # Get most common predictions from history
+            # Get smoothed predictions with longer history for gender
             if len(self.history[face_id]['age']) > 0:
-                age_counts = np.bincount(list(self.history[face_id]['age']))
-                age_idx = np.argmax(age_counts)
+                # Most common age prediction
+                age_counts = {}
+                for a in self.history[face_id]['age']:
+                    age_counts[a] = age_counts.get(a, 0) + 1
+                smoothed_age = max(age_counts.items(), key=lambda x: x[1])[0]
                 
-                gender_counts = np.bincount(list(self.history[face_id]['gender']))
-                gender_idx = np.argmax(gender_counts)
+                # Most common gender prediction
+                gender_counts = {}
+                for g in self.history[face_id]['gender']:
+                    gender_counts[g] = gender_counts.get(g, 0) + 1
+                smoothed_gender = max(gender_counts.items(), key=lambda x: x[1])[0]
                 
-                age_range = self.age_ranges[age_idx]
-                age_str = f"{age_range[0]}-{age_range[1]}"
-                gender = self.gender_list[gender_idx]
-                
-                return age_str, gender
+                return smoothed_age, smoothed_gender
             
-            return "Unknown", "Unknown"
+            return age, gender
             
         except Exception as e:
             logger.error(f"Error in age/gender prediction: {str(e)}")
             return "Unknown", "Unknown"
 
     def cleanup(self):
-        """Clean up old face histories."""
+        """Clean up resources."""
         self.history.clear() 
