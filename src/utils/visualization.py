@@ -10,7 +10,8 @@ class Visualizer:
             'text_bg': (0, 0, 0),  # Black
             'text': (255, 255, 255),  # White
             'landmarks': (255, 0, 0),  # Red
-            'fps': (0, 255, 255)  # Yellow
+            'fps': (0, 255, 255),  # Yellow
+            'metrics': (255, 165, 0)  # Orange
         }
         self.font = cv2.FONT_HERSHEY_SIMPLEX
         self.font_scale = 0.6
@@ -90,4 +91,43 @@ class Visualizer:
                    self.font,
                    self.font_scale,
                    self.colors['fps'],
-                   self.thickness) 
+                   self.thickness)
+
+    def draw_metrics(self, frame: np.ndarray, metrics: Dict[str, float]) -> None:
+        """Draw system metrics in top-right corner.
+        
+        Args:
+            frame: Input BGR image
+            metrics: Dictionary containing metrics (cpu_percent, memory_percent)
+        """
+        frame_h, frame_w = frame.shape[:2]
+        line_height = 30
+        
+        metrics_text = [
+            f"CPU: {metrics.get('cpu_percent', 0):.1f}%",
+            f"Memory: {metrics.get('memory_percent', 0):.1f}%"
+        ]
+        
+        for i, text in enumerate(metrics_text):
+            # Get text size for right alignment
+            (text_w, text_h), _ = cv2.getTextSize(text, self.font, self.font_scale, self.thickness)
+            
+            # Position text on right side
+            x = frame_w - text_w - 10
+            y = (i + 1) * line_height
+            
+            # Draw background rectangle
+            cv2.rectangle(frame,
+                        (x - 5, y - text_h - 5),
+                        (x + text_w + 5, y + 5),
+                        self.colors['text_bg'],
+                        -1)
+            
+            # Draw text
+            cv2.putText(frame,
+                       text,
+                       (x, y),
+                       self.font,
+                       self.font_scale,
+                       self.colors['metrics'],
+                       self.thickness) 

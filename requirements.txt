@@ -13,6 +13,7 @@ mediapipe>=0.8.9
 PyQt5>=5.15.4
 pillow>=8.3.1
 tqdm>=4.62.2
+psutil>=5.8.0
 
 # Logging and development
 rich>=10.12.0
